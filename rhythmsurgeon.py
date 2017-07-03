@@ -5,13 +5,59 @@ class Level:
     """A Rhythm Doctor level."""
     
     def __init__(self, filename):
-        level_json = open(filename)
-        self.settings = level_json.settings
-        self.rank_description = level_json.rankDescription
-        self.rows = level_json.rows
-        self.events = level_json.events
+        self.filename = filename
+        level_json = read(filename)
+        self.settings = level_json["settings"]
+        self.rows = level_json["rows"]
+        self.events = level_json["events"]
 
-def open(filename):
+    def save(self):
+        """Save the level back to the file, after making a backup.
+        
+        Doesn't necessarily save exactly in the nicely formatted way that the
+        Rhythm Doctor level editor does. It just spits out a valid JSON object.
+        """
+    
+        level_text = json.dumps({
+            "settings": self.settings,
+            "rows": self.rows,
+            "events": self.events
+        })
+    
+        with open(self.filename, "r+") as f:
+            old_text = f.read()
+    
+            with open(self.filename + ".bak", "w") as g:
+                g.write(old_text)
+    
+            f.seek(0, 0)
+            f.write(level_text)
+            f.truncate()
+
+    def bars(self):
+        """Generator that yields all the events in each measure."""
+
+        def sort_by_beats(events):
+            """Sort events by bar first, then beat in the bar."""
+            bar_beat = lambda e:(e["bar"], e["beat"])
+            return sorted(events, key=bar_beat)
+
+        # the list to yield
+        bar = []
+
+        for event in sort_by_beats(self.events):
+            # If the list is non-empty and the most recent event was in a
+            # different bar than the current one, yield the list and clear it
+            if bar != [] and event["bar"] != bar[-1]["bar"]:
+                yield bar
+                bar = []
+
+            bar.append(event)
+
+        yield bar
+
+
+def read(filename):
     """Return the level's file parsed as JSON"""
 
     def strip_trailing_commas(text):
@@ -34,30 +80,6 @@ def open(filename):
     with open(filename) as f:
         level_text = strip_trailing_commas(f.read())
 
-    return json.parse(level_text)
+    return json.loads(level_text)
 
-def save(filename, level):
-    """Save the level back to the file, after making a backup.
-    
-    Doesn't necessarily save exactly in the nicely formatted way that the
-    Rhythm Doctor level editor does. It just spits out a valid JSON object.
-    """
 
-    level_text = json.dumps("""
-    {
-        "settings": {settings},
-        "rankDescription": {rank_description},
-        "rows": {rows},
-        "events": {events}
-    }""".format(settings=level.settings,
-                rank_description=level.rank_description,
-                rows=level.rows,
-                events=level.events)
-
-    with open(filename, "r+") as f:
-        old_text = f.read()
-
-        with open(filename + ".bak", "w") as g:
-            g.write(old_text)
-
-        f.write(json.dumps(level.level_json))
