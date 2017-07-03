@@ -39,6 +39,7 @@ class Level:
 
         def sort_by_beats(events):
             """Sort events by bar first, then beat in the bar."""
+
             bar_beat = lambda e:(e["bar"], e["beat"])
             return sorted(events, key=bar_beat)
 
@@ -56,6 +57,51 @@ class Level:
 
         yield bar
 
+    def x_at_beat(self, in_bar, in_beat, row):
+        """Return the X pattern of the row at the bar:beat time indicated."""
+
+        pattern = "------"
+
+        for bar in self.bars():
+            for event in bar:
+                # Check that we're not already past our target
+                if event["bar"] > in_bar or (event["bar"] == in_bar and event["beat"] > in_beat):
+                    return pattern
+
+                # Check if the current event is a "set row Xs" event for the
+                # row we care about
+                if event["type"] == "SetRowXs" and event["row"] == row:
+                    pattern = event["pattern"]
+
+        return pattern
+
+    def crotchets_at_bar(self, in_bar):
+        """Return the number of crotches in the bar indicated."""
+
+        crotchets = 8
+
+        for bar in self.bars():
+            for event in bar:
+                if event["bar"] > in_bar:
+                    return crotchets
+
+                if event["type"] == "SetCrotchetsPerBar":
+                    crotchets = event["crotchetsPerBar"]
+
+        return crotchets
+
+    def sum_beats(self, start_bar, start_beats, num_bar, num_beats):
+        """Add two (bar, beat) pairs together."""
+    
+        cur_bar = start_bar + num_bar
+        cur_beats = start_beats + num_beats - 2 # Subtract two to handle the
+                                                # 1-indexing of both numbers
+    
+        while cur_beats >= self.crotchets_at_bar(cur_bar):
+            cur_beats -= self.crotchets_at_bar(cur_bar)
+            cur_bar += 1
+    
+        return (cur_bar, cur_beats + 1) # Add 1 to make it 1-indexing again
 
 def read(filename):
     """Return the level's file parsed as JSON"""
@@ -81,5 +127,3 @@ def read(filename):
         level_text = strip_trailing_commas(f.read())
 
     return json.loads(level_text)
-
-
